@@ -1,0 +1,36 @@
+resources:
+  jobs:
+    New_Job_2026_10_16_16_45_56:
+      name: New Job 2026-10-16 16:45:56
+      trigger:
+        pause_status: UNPAUSED
+        periodic:
+          interval: 1
+          unit: DAYS
+      tasks:
+        - task_key: to_bronze
+          notebook_task:
+            notebook_path: /Workspace/Users/izabelsra@ic.ufrj.br/Landing_to_Bronze
+            source: WORKSPACE
+          environment_key: Default
+        - task_key: to_silver
+          depends_on:
+            - task_key: to_bronze
+          notebook_task:
+            notebook_path: /Workspace/Users/izabelsra@ic.ufrj.br/Bronze_to_Silver
+            source: WORKSPACE
+          environment_key: Default
+        - task_key: to_gold
+          depends_on:
+            - task_key: to_silver
+          notebook_task:
+            notebook_path: /Workspace/Users/izabelsra@ic.ufrj.br/Silver_to_Gold
+            source: WORKSPACE
+          environment_key: Default
+      queue:
+        enabled: true
+      environments:
+        - environment_key: Default
+          spec:
+            environment_version: "6"
+      performance_target: PERFORMANCE_OPTIMIZED

@@ -1,24 +1,30 @@
-# CineData Analytics — Atividade 2 · Arquitetura Medalhão (Databricks)
+# CineData Analytics — Atividade RocketLab 2026.2 · Pipeline Medalhão + Workflow (Databricks)
 
-Pipeline ETL **Bronze → Silver → Gold** sobre a base combinada TMDB/IMDb, com Star Schema para BI.
+Pipeline ETL **Landing → Bronze → Silver → Gold** (Star Schema) sobre a base TMDB/IMDb, orquestrado por um **Databricks Workflow** com 3 tasks encadeadas.
 
-## Notebooks (executar na ordem)
+## Arquivos do repositório
 
-| # | Notebook | O que faz |
-|---|----------|-----------|
-| 1 | `01_bronze.ipynb` | Cria o schema `bronze`, lê os 5 CSVs do Volume e grava Delta (append) + `ingestion_datetime`; ingere a cotação do dólar (**mock** da API do BCB) |
-| 2 | `02_silver.ipynb` | Limpeza, tipagem, tradução, deduplicação e forward fill → 7 tabelas `silver.*` |
-| 3 | `03_gold_star_schema.ipynb` | `fact_movies_performance`, 5 dimensões e 3 tabelas-ponte, com checagem de grão e de integridade |
-| 4 | `04_gold_analytics.ipynb` | Respostas às 6 perguntas de negócio com `display()` |
+| Arquivo | O que é |
+|---|---|
+| `Landing_to_Bronze.ipynb` | Task `to_Bronze`: CSVs do Volume + cotação do dólar (mock/API do BCB) → `bronze.*` (Delta, append, `ingestion_datetime`) |
+| `Bronze_to_Silver.ipynb` | Task `to_Silver`: limpeza, tipagem, tradução, deduplicação e forward fill → 7 tabelas `silver.*` |
+| `Silver_to_Gold.ipynb` | Task `to_Gold`: Star Schema (fato, 5 dimensões, 3 pontes), validação de integridade e as 6 perguntas de negócio |
+| `job.yaml` | Export do Databricks Workflow (3 tasks, dependências e agendamento) |
+| `print_job_sucesso.png` | Print da execução bem-sucedida do Job com o grafo de dependências |
+
+## Orquestração (Databricks Workflow)
+
+`to_Bronze` → `to_Silver` → `to_Gold` (cada task só inicia após a conclusão da anterior).
+Agendamento diário às 06:00 (America/Sao_Paulo), compute serverless. Parâmetros por *widgets* com valor padrão, então os notebooks rodam sem intervenção.
+Como o modo `append` acrescenta dados a cada execução, a Silver mantém sempre a versão mais recente de cada registro (via `ingestion_datetime`), e o pipeline é seguro para reexecuções.
 
 ## Como rodar
-1. No Databricks: **Catalog → seu schema → Create → Volume** (`inputs`) e faça upload dos 5 CSVs da pasta Inputs.
-   (O notebook 01 também cria o Volume se ele não existir.)
-2. Importe os `.ipynb` no Workspace e ajuste o widget `catalogo` (padrão: `workspace`).
-3. Execute 01 → 02 → 03 → 04.
+1. No Databricks: **Catalog → schema → Create → Volume** (`inputs`) e faça upload dos 5 CSVs da pasta Inputs.
+2. Importe os 3 `.ipynb` no Workspace (ajuste o widget `catalogo` se não for `workspace`).
+3. Crie o Job (Workflows → Create job) com as 3 tasks e as dependências, ou rode os notebooks na ordem.
 
 ## Mock da API do Banco Central
-O endpoint PTAX está instável, então o notebook 01 traz o widget **`usar_mock`** (padrão `true`):
+O endpoint PTAX está instável, então o notebook Landing_to_Bronze traz o widget **`usar_mock`** (padrão `true`):
 - `true` → `gerar_mock_resposta_bcb()` devolve um JSON **idêntico ao contrato da API real** (`value[].cotacaoCompra` / `dataHoraCotacao`), com 4 boletins por dia útil e nenhum em fins de semana/feriados (semente fixa ⇒ reprodutível).
 - `false` → chama a API real; se falhar, usa o mock como fallback.
 - A coluna `fonte` em `bronze.tb_cotacao_dolar` registra a origem (`MOCK`, `API_BCB` ou `MOCK_FALLBACK`).
